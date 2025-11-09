@@ -23,24 +23,16 @@ const errorHandler = require('./middleware/errorHandler');
 const { auth } = require('./middleware/auth');
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:8081",
-      "http://localhost:8082",
-      "http://192.168.20.26:3000",
-      "http://192.168.20.26:8081",
-      "http://192.168.20.26:8082",
-      "exp://192.168.20.26:8081"
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
-  }
-});
 
-// Security middleware
+// ✅ Crea el servidor HTTP solo en local
+let server;
+if (process.env.NODE_ENV !== 'production') {
+  server = createServer(app);
+} else {
+  server = app; // 👈 En Vercel exportamos solo la app, no el servidor
+}
+
+// Seguridad y rendimiento
 app.use(helmet());
 app.use(compression());
 
@@ -66,76 +58,53 @@ app.use(cors({
   credentials: true
 }));
 
-// Body parsing middleware
+// Body parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging middleware
+// Logging (solo dev)
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Database connection
-mongoose
-  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/restaurante_manager')
-  .then(async () => {
-    console.log('✅ Conectado a MongoDB');
+// Conexión a MongoDB
+mongoose.connect(process.env.MONGODB_URI, { dbName: 'test' })
+  .then(() => console.log('✅ Conectado a MongoDB Atlas'))
+  .catch((err) => console.error('❌ Error conectando a MongoDB:', err));
 
-    // Inicializar base de datos si es necesario
-    try {
-      const db = mongoose.connection.db;
-      const collections = await db.listCollections().toArray();
-
-      if (collections.length === 0) {
-        console.log('🔧 Inicializando base de datos...');
-        await db.collection('users').createIndex({ email: 1 }, { unique: true });
-        await db.collection('restaurants').createIndex({ name: 1 });
-        await db.collection('inventoryitems').createIndex({ restaurant: 1 });
-        await db.collection('orders').createIndex({ restaurant: 1 });
-        await db.collection('cashcloses').createIndex({ restaurant: 1 });
-        console.log('✅ Base de datos inicializada');
-      }
-    } catch (error) {
-      console.log('⚠️ Error inicializando base de datos:', error.message);
+// Socket.io (solo se activa en local)
+if (process.env.NODE_ENV !== 'production') {
+  const io = new Server(server, {
+    cors: {
+      origin: [
+        "http://localhost:3000",
+        "http://localhost:8081",
+        "http://localhost:8082",
+        "http://192.168.20.26:3000",
+        "http://192.168.20.26:8081",
+        "http://192.168.20.26:8082",
+        "exp://192.168.20.26:8081"
+      ],
+      methods: ["GET", "POST", "PUT", "DELETE"],
+      credentials: true
     }
-  })
-  .catch((err) => {
-    console.error('❌ Error conectando a MongoDB:', err);
   });
 
-// Socket.io connection handling
-io.on('connection', (socket) => {
-  console.log('🔌 Usuario conectado:', socket.id);
-
-  socket.on('join-restaurant', (restaurantId) => {
-    socket.join(`restaurant-${restaurantId}`);
-    console.log(`Usuario ${socket.id} se unió al restaurante ${restaurantId}`);
+  io.on('connection', (socket) => {
+    console.log('🔌 Usuario conectado:', socket.id);
+    socket.on('join-restaurant', (restaurantId) => {
+      socket.join(`restaurant-${restaurantId}`);
+    });
+    socket.on('disconnect', () => console.log('🔌 Usuario desconectado:', socket.id));
   });
 
-  socket.on('order-update', (data) => {
-    socket.to(`restaurant-${data.restaurantId}`).emit('order-updated', data);
+  app.use((req, res, next) => {
+    req.io = io;
+    next();
   });
+}
 
-  socket.on('inventory-update', (data) => {
-    socket.to(`restaurant-${data.restaurantId}`).emit('inventory-updated', data);
-  });
-
-  socket.on('cash-close-update', (data) => {
-    socket.to(`restaurant-${data.restaurantId}`).emit('cash-close-updated', data);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('🔌 Usuario desconectado:', socket.id);
-  });
-});
-
-// Make io available to routes
-app.use((req, res, next) => {
-  req.io = io;
-  next();
-});
-
-// Health check endpoint
+// Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'success',
@@ -145,7 +114,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// API routes
+// Rutas principales
 app.use('/api/auth', authRoutes);
 app.use('/api/inventory', auth, inventoryRoutes);
 app.use('/api/orders', auth, ordersRoutes);
@@ -154,24 +123,21 @@ app.use('/api/analytics', auth, analyticsRoutes);
 app.use('/api/users', auth, userRoutes);
 app.use('/api/day', auth, dayRoutes);
 
-// 404 handler
+// 404
 app.use('*', (req, res) => {
-  res.status(404).json({
-    status: 'error',
-    message: `Ruta ${req.originalUrl} no encontrada`
-  });
+  res.status(404).json({ status: 'error', message: `Ruta ${req.originalUrl} no encontrada` });
 });
 
-// Error handling middleware
+// Error handler
 app.use(errorHandler);
 
-// ✅ Si estamos en entorno local, iniciamos el servidor normalmente
+// 🔹 Ejecutar solo en local
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3001;
   server.listen(PORT, () => {
-    console.log(`🚀 Servidor local ejecutándose en puerto ${PORT}`);
+    console.log(`🚀 Servidor local corriendo en puerto ${PORT}`);
   });
 }
 
-// ✅ Exporta la app para Vercel
+// 🔹 Exporta solo la app (requerido por Vercel)
 module.exports = app;
