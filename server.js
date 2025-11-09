@@ -28,7 +28,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:3000",
-      "http://localhost:8081", 
+      "http://localhost:8081",
       "http://localhost:8082",
       "http://192.168.20.26:3000",
       "http://192.168.20.26:8081",
@@ -46,8 +46,8 @@ app.use(compression());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
   message: 'Demasiadas solicitudes desde esta IP, intenta de nuevo más tarde.'
 });
 app.use('/api/', limiter);
@@ -56,7 +56,7 @@ app.use('/api/', limiter);
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "http://localhost:8081", 
+    "http://localhost:8081",
     "http://localhost:8082",
     "http://192.168.20.26:3000",
     "http://192.168.20.26:8081",
@@ -76,57 +76,50 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Database connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/restaurante_manager')
-.then(async () => {
-  console.log('✅ Conectado a MongoDB');
-  
-  // Inicializar base de datos si es necesario
-  try {
-    const db = mongoose.connection.db;
-    const collections = await db.listCollections().toArray();
-    
-    if (collections.length === 0) {
-      console.log('🔧 Inicializando base de datos...');
-      // Crear índices básicos
-      await db.collection('users').createIndex({ email: 1 }, { unique: true });
-      await db.collection('restaurants').createIndex({ name: 1 });
-      await db.collection('inventoryitems').createIndex({ restaurant: 1 });
-      await db.collection('orders').createIndex({ restaurant: 1 });
-      await db.collection('cashcloses').createIndex({ restaurant: 1 });
-      console.log('✅ Base de datos inicializada');
+mongoose
+  .connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/restaurante_manager')
+  .then(async () => {
+    console.log('✅ Conectado a MongoDB');
+
+    // Inicializar base de datos si es necesario
+    try {
+      const db = mongoose.connection.db;
+      const collections = await db.listCollections().toArray();
+
+      if (collections.length === 0) {
+        console.log('🔧 Inicializando base de datos...');
+        await db.collection('users').createIndex({ email: 1 }, { unique: true });
+        await db.collection('restaurants').createIndex({ name: 1 });
+        await db.collection('inventoryitems').createIndex({ restaurant: 1 });
+        await db.collection('orders').createIndex({ restaurant: 1 });
+        await db.collection('cashcloses').createIndex({ restaurant: 1 });
+        console.log('✅ Base de datos inicializada');
+      }
+    } catch (error) {
+      console.log('⚠️ Error inicializando base de datos:', error.message);
     }
-  } catch (error) {
-    console.log('⚠️ Error inicializando base de datos:', error.message);
-  }
-})
-.catch((err) => {
-  console.error('❌ Error conectando a MongoDB:', err);
-  console.log('💡 Asegúrate de que MongoDB esté corriendo:');
-  console.log('   ./start-mongodb.sh');
-  process.exit(1);
-});
+  })
+  .catch((err) => {
+    console.error('❌ Error conectando a MongoDB:', err);
+  });
 
 // Socket.io connection handling
 io.on('connection', (socket) => {
   console.log('🔌 Usuario conectado:', socket.id);
-  
-  // Join user to their restaurant room
+
   socket.on('join-restaurant', (restaurantId) => {
     socket.join(`restaurant-${restaurantId}`);
     console.log(`Usuario ${socket.id} se unió al restaurante ${restaurantId}`);
   });
 
-  // Handle order updates
   socket.on('order-update', (data) => {
     socket.to(`restaurant-${data.restaurantId}`).emit('order-updated', data);
   });
 
-  // Handle inventory updates
   socket.on('inventory-update', (data) => {
     socket.to(`restaurant-${data.restaurantId}`).emit('inventory-updated', data);
   });
 
-  // Handle cash close updates
   socket.on('cash-close-update', (data) => {
     socket.to(`restaurant-${data.restaurantId}`).emit('cash-close-updated', data);
   });
@@ -172,23 +165,13 @@ app.use('*', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-// Start server
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Socket.io habilitado para tiempo real`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM recibido, cerrando servidor...');
-  server.close(() => {
-    console.log('✅ Servidor cerrado');
-    mongoose.connection.close();
-    process.exit(0);
+// ✅ Si estamos en entorno local, iniciamos el servidor normalmente
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3001;
+  server.listen(PORT, () => {
+    console.log(`🚀 Servidor local ejecutándose en puerto ${PORT}`);
   });
-});
+}
 
-module.exports = { app, io };
-// Restarting server
+// ✅ Exporta la app para Vercel
+module.exports = app;
