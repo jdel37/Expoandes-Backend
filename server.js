@@ -25,7 +25,7 @@ const { auth } = require('./middleware/auth');
 
 const app = express();
 
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 
 // ✅ Crea el servidor HTTP solo en local
 let server;
@@ -71,7 +71,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Conexión a MongoDB
-mongoose.connect(process.env.MONGODB_URI, { dbName: 'test' })
+mongoose.connect(process.env.MONGODB_URI, { dbName: 'test', bufferTimeoutMS: 30000 })
   .then(() => console.log('✅ Conectado a MongoDB Atlas'))
   .catch((err) => console.error('❌ Error conectando a MongoDB:', err));
 
