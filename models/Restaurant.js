@@ -113,4 +113,13 @@ const restaurantSchema = new mongoose.Schema({
 restaurantSchema.index({ name: 1 });
 restaurantSchema.index({ 'contact.email': 1 });
 
+// Remove password from JSON output
+restaurantSchema.methods.toJSON = function() {
+  const restaurantObject = this.toObject();
+  restaurantObject.id = restaurantObject._id;
+  delete restaurantObject._id;
+  delete restaurantObject.__v;
+  return restaurantObject;
+};
+
 module.exports = mongoose.model('Restaurant', restaurantSchema);

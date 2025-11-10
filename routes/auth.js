@@ -75,20 +75,14 @@ router.post('/register', [
     // Generate token
     const token = generateToken(user._id);
 
+    const userObject = user.toObject();
+    delete userObject.password;
+
     res.status(201).json({
       status: 'success',
       message: 'Usuario registrado exitosamente',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          restaurant: {
-            id: restaurant._id,
-            name: restaurant.name
-          }
-        },
+        user: userObject,
         token
       }
     });
@@ -131,6 +125,14 @@ router.post('/login', [
       });
     }
 
+    // Check if restaurant exists
+    if (!user.restaurant) {
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error del servidor: No se pudo encontrar el restaurante asociado a este usuario.'
+      });
+    }
+
     // Check if user is active
     if (!user.isActive) {
       return res.status(401).json({
@@ -154,29 +156,21 @@ router.post('/login', [
     // Generate token
     const token = generateToken(user._id);
 
+    const userObject = user.toObject();
+    delete userObject.password;
+
     res.json({
       status: 'success',
       message: 'Login exitoso',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          restaurant: {
-            id: user.restaurant._id,
-            name: user.restaurant.name
-          },
-          preferences: user.preferences
-        },
+        user: userObject,
         token
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Error interno del servidor'
+      message: error.message
     });
   }
 });
@@ -188,21 +182,13 @@ router.get('/me', auth, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate('restaurant');
     
+    const userObject = user.toObject();
+    delete userObject.password;
+
     res.json({
       status: 'success',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          restaurant: {
-            id: user.restaurant._id,
-            name: user.restaurant.name
-          },
-          preferences: user.preferences,
-          lastLogin: user.lastLogin
-        }
+        user: userObject
       }
     });
   } catch (error) {
@@ -250,20 +236,23 @@ router.put('/update-preferences', [
       { new: true, runValidators: true }
     ).populate('restaurant');
 
+    const userObject = user.toObject();
+    delete userObject.password;
+
     res.json({
       status: 'success',
       message: 'Preferencias actualizadas',
       data: {
         user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+          id: userObject._id,
+          name: userObject.name,
+          email: userObject.email,
+          role: userObject.role,
           restaurant: {
-            id: user.restaurant._id,
-            name: user.restaurant.name
+            id: userObject.restaurant.id,
+            name: userObject.restaurant.name
           },
-          preferences: user.preferences
+          preferences: userObject.preferences
         }
       }
     });
@@ -312,9 +301,15 @@ router.post('/change-password', [
     user.password = newPassword;
     await user.save();
 
+    // Generate token
+    const token = generateToken(user._id);
+
     res.json({
       status: 'success',
-      message: 'Contraseña actualizada exitosamente'
+      message: 'Contraseña actualizada exitosamente',
+      data: {
+        token
+      }
     });
   } catch (error) {
     console.error('Change password error:', error);

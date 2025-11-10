@@ -27,7 +27,7 @@ const auth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // Get user from database
-    const user = await User.findById(decoded.id).select('+password');
+    const user = await User.findById(decoded.id).populate('restaurant');
     
     if (!user) {
       return res.status(401).json({
@@ -43,16 +43,19 @@ const auth = async (req, res, next) => {
       });
     }
 
-    // Add user to request object
-    req.user = user;
-    req.restaurant = user.restaurant;
-    console.log('req.restaurant:', req.restaurant);
-    if (!mongoose.Types.ObjectId.isValid(req.restaurant)) {
-      return res.status(400).json({
+    // Check if restaurant exists
+    if (!user.restaurant) {
+      return res.status(500).json({
         status: 'error',
-        message: 'Invalid restaurant ID'
+        message: 'Error del servidor: No se pudo encontrar el restaurante asociado a este usuario.'
       });
     }
+
+    // Add user and restaurant to request object
+    const userObject = user.toObject();
+    delete userObject.password;
+    req.user = userObject;
+    req.restaurant = user.restaurant;
     
     next();
   } catch (error) {
@@ -91,7 +94,9 @@ const optionalAuth = async (req, res, next) => {
         const user = await User.findById(decoded.id);
         
         if (user && user.isActive) {
-          req.user = user;
+          const userObject = user.toObject();
+          delete userObject.password;
+          req.user = userObject;
           req.restaurant = user.restaurant;
         }
       }

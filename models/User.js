@@ -90,7 +90,10 @@ userSchema.methods.updateLastLogin = function() {
 // Remove password from JSON output
 userSchema.methods.toJSON = function() {
   const userObject = this.toObject();
+  userObject.id = userObject._id;
+  delete userObject._id;
   delete userObject.password;
+  delete userObject.__v;
   return userObject;
 };
 

@@ -17,6 +17,7 @@ const cashCloseRoutes = require('./routes/cashClose');
 const analyticsRoutes = require('./routes/analytics');
 const userRoutes = require('./routes/users');
 const dayRoutes = require('./routes/day');
+const restaurantRoutes = require('./routes/restaurant');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -122,6 +123,7 @@ app.use('/api/cash-close', auth, cashCloseRoutes);
 app.use('/api/analytics', auth, analyticsRoutes);
 app.use('/api/users', auth, userRoutes);
 app.use('/api/day', auth, dayRoutes);
+app.use('/api/restaurant', auth, restaurantRoutes);
 
 // 404
 app.use('*', (req, res) => {
