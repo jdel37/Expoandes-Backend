@@ -115,8 +115,11 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
+    console.log('Login attempt for email:', email);
+
     // Check if user exists and get password
     const user = await User.findOne({ email }).select('+password').populate('restaurant');
+    console.log('User found:', user ? user._id : 'none');
     
     if (!user) {
       return res.status(401).json({
@@ -127,6 +130,7 @@ router.post('/login', [
 
     // Check if restaurant exists
     if (!user.restaurant) {
+      console.error('User found but no associated restaurant:', user._id);
       return res.status(500).json({
         status: 'error',
         message: 'Error del servidor: No se pudo encontrar el restaurante asociado a este usuario.'
@@ -135,6 +139,7 @@ router.post('/login', [
 
     // Check if user is active
     if (!user.isActive) {
+      console.log('Inactive user attempt:', user._id);
       return res.status(401).json({
         status: 'error',
         message: 'Usuario inactivo'
@@ -142,7 +147,9 @@ router.post('/login', [
     }
 
     // Check password
+    console.log('Comparing password for user:', user._id);
     const isPasswordValid = await user.comparePassword(password);
+    console.log('Password valid:', isPasswordValid);
     if (!isPasswordValid) {
       return res.status(401).json({
         status: 'error',
@@ -151,10 +158,14 @@ router.post('/login', [
     }
 
     // Update last login
+    console.log('Updating last login for user:', user._id);
     await user.updateLastLogin();
+    console.log('Last login updated.');
 
     // Generate token
+    console.log('Generating token for user:', user._id);
     const token = generateToken(user._id);
+    console.log('Token generated.');
 
     const userObject = user.toObject();
     delete userObject.password;
@@ -168,9 +179,14 @@ router.post('/login', [
       }
     });
   } catch (error) {
+    console.error('Login error:', {
+      message: error.message,
+      stack: error.stack,
+      body: req.body
+    });
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: 'Error interno del servidor'
     });
   }
 });
