@@ -25,6 +25,8 @@ const { auth } = require('./middleware/auth');
 
 const app = express();
 
+app.set('trust proxy', true);
+
 // ✅ Crea el servidor HTTP solo en local
 let server;
 if (process.env.NODE_ENV !== 'production') {
